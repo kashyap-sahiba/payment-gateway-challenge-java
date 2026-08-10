@@ -3,6 +3,7 @@ package com.checkout.paymentgateway.controller;
 import com.checkout.paymentgateway.exception.BankSimulatorBadRequestException;
 import com.checkout.paymentgateway.exception.BankSimulatorUnavailableException;
 import com.checkout.paymentgateway.exception.PaymentNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -26,6 +28,8 @@ public class GlobalExceptionHandler {
                     .collect(Collectors.joining("; "));
         }
 
+        log.warn("Payment rejected at validation: {}", reason);
+
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
         problem.setTitle("Rejected");
         problem.setDetail("Payment request rejected: " + reason);
@@ -34,6 +38,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail handleMalformedRequestBody(HttpMessageNotReadableException ex) {
+        log.warn("Payment rejected at validation: request body is malformed or contains an unsupported value");
+
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
         problem.setTitle("Rejected");
         problem.setDetail("Payment request rejected: request body is malformed or contains an unsupported value");

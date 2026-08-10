@@ -11,5 +11,11 @@ springdoc:
   api-docs:
     enabled: true
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+
 bank-simulator:
   base-url: http://localhost:8080

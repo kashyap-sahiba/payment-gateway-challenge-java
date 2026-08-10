@@ -20,6 +20,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,7 +50,7 @@ class PaymentServiceTest {
     void shouldMarkPaymentAsAuthorizedWhenBankAuthorizes() {
         paymentService = new PaymentService(bankSimulatorClient, paymentsRepository);
         PaymentRequest request = validRequestBuilder().build();
-        when(bankSimulatorClient.authorize(request))
+        when(bankSimulatorClient.authorize(any(UUID.class), eq(request)))
                 .thenReturn(BankSimulatorResponse.builder().authorized(true).authorizationCode("AUTH123").build());
         when(paymentsRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -72,7 +73,7 @@ class PaymentServiceTest {
     void shouldMarkPaymentAsDeclinedWhenBankDeclines() {
         paymentService = new PaymentService(bankSimulatorClient, paymentsRepository);
         PaymentRequest request = validRequestBuilder().build();
-        when(bankSimulatorClient.authorize(request))
+        when(bankSimulatorClient.authorize(any(UUID.class), eq(request)))
                 .thenReturn(BankSimulatorResponse.builder().authorized(false).authorizationCode(null).build());
         when(paymentsRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -86,7 +87,7 @@ class PaymentServiceTest {
     void shouldPropagateExceptionAndNotSaveWhenBankSimulatorUnavailable() {
         paymentService = new PaymentService(bankSimulatorClient, paymentsRepository);
         PaymentRequest request = validRequestBuilder().build();
-        when(bankSimulatorClient.authorize(request))
+        when(bankSimulatorClient.authorize(any(UUID.class), eq(request)))
                 .thenThrow(new BankSimulatorUnavailableException("Bank simulator is unavailable"));
 
         assertThatThrownBy(() -> paymentService.processPayment(request))

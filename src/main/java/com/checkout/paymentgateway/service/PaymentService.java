@@ -6,11 +6,13 @@ import com.checkout.paymentgateway.dto.PaymentRequest;
 import com.checkout.paymentgateway.model.Payment;
 import com.checkout.paymentgateway.model.PaymentStatus;
 import com.checkout.paymentgateway.repository.PaymentsRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class PaymentService {
 
@@ -23,17 +25,22 @@ public class PaymentService {
     }
 
     public Payment processPayment(PaymentRequest request) {
-        String cardNumber = request.getCardNumber();
+        UUID paymentId = UUID.randomUUID();
+        String cardNumberLastFour = request.getCardNumber().substring(request.getCardNumber().length() - 4);
+
+        log.info("Payment {} received and validated, cardEnding={}, currency={}, amount={}",
+                paymentId, cardNumberLastFour, request.getCurrency(), request.getAmount());
+
         Payment payment = Payment.builder()
-                .id(UUID.randomUUID())
-                .cardNumberLastFour(cardNumber.substring(cardNumber.length() - 4))
+                .id(paymentId)
+                .cardNumberLastFour(cardNumberLastFour)
                 .expiryMonth(request.getExpiryMonth())
                 .expiryYear(request.getExpiryYear())
                 .currency(request.getCurrency().name())
                 .amount(request.getAmount())
                 .build();
 
-        BankSimulatorResponse bankResponse = bankSimulatorClient.authorize(request);
+        BankSimulatorResponse bankResponse = bankSimulatorClient.authorize(paymentId, request);
         payment.setStatus(bankResponse.isAuthorized() ? PaymentStatus.AUTHORIZED : PaymentStatus.DECLINED);
 
         return paymentsRepository.save(payment);

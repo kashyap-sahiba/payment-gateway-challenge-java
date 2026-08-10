@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 
+import java.util.UUID;
+
 @Slf4j
 @Component
 public class BankSimulatorClient {
@@ -20,7 +22,7 @@ public class BankSimulatorClient {
         this.webClient = webClientBuilder.baseUrl(baseUrl).build();
     }
 
-    public BankSimulatorResponse authorize(PaymentRequest paymentRequest) {
+    public BankSimulatorResponse authorize(UUID paymentId, PaymentRequest paymentRequest) {
         BankSimulatorRequest request = BankSimulatorRequest.builder()
                 .cardNumber(paymentRequest.getCardNumber())
                 .expiryDate("%02d/%04d".formatted(paymentRequest.getExpiryMonth(), paymentRequest.getExpiryYear()))
@@ -29,26 +31,31 @@ public class BankSimulatorClient {
                 .cvv(paymentRequest.getCvv())
                 .build();
 
+        log.info("Calling bank simulator for payment {}", paymentId);
+
         try {
-            return webClient.post()
+            BankSimulatorResponse bankResponse = webClient.post()
                     .uri("/payments")
                     .bodyValue(request)
                     .retrieve()
-                    .onStatus(status -> status.value() == 400, response ->
-                            response.bodyToMono(String.class)
+                    .onStatus(status -> status.value() == 400, errorResponse ->
+                            errorResponse.bodyToMono(String.class)
                                     .defaultIfEmpty("")
-                                    .doOnNext(body -> log.error("Bank simulator rejected our request as malformed, response body: {}", body))
+                                    .doOnNext(body -> log.error("Bank simulator rejected our request for payment {} as malformed, response body: {}", paymentId, body))
                                     .map(body -> new BankSimulatorBadRequestException(
                                             "Bank simulator rejected the request as malformed")))
-                    .onStatus(status -> status.value() == 503, response ->
-                            response.bodyToMono(String.class)
+                    .onStatus(status -> status.value() == 503, errorResponse ->
+                            errorResponse.bodyToMono(String.class)
                                     .defaultIfEmpty("")
-                                    .doOnNext(body -> log.warn("Bank simulator is unavailable, response body: {}", body))
+                                    .doOnNext(body -> log.warn("Bank simulator is unavailable for payment {}, response body: {}", paymentId, body))
                                     .map(body -> new BankSimulatorUnavailableException("Bank simulator is unavailable")))
                     .bodyToMono(BankSimulatorResponse.class)
                     .block();
+
+            log.info("Bank simulator responded for payment {}: authorized={}", paymentId, bankResponse.isAuthorized());
+            return bankResponse;
         } catch (WebClientRequestException e) {
-            log.warn("Unable to reach bank simulator", e);
+            log.warn("Unable to reach bank simulator for payment {}", paymentId, e);
             throw new BankSimulatorUnavailableException("Unable to reach bank simulator", e);
         }
     }
